@@ -1,0 +1,42 @@
+* Notes
+** [2019-05-07 Tue]
+- Add a test driver script that generates noise, foreground, cmb simulations
+  #+BEGIN_EXAMPLE
+  08:26:52 actsims/# python driver.py -h
+  usage: driver.py [-h] [--iteration ITERATION] [--set SET] [--patch PATCH]
+                   [--season SEASON] [--array ARRAY] --noise NOISE --signal
+                   SIGNAL [--verbose] [--sim_type SIM_TYPE] [--window] [--beam]
+                   [--diagonal] [--split SPLIT] [--modulation]
+                   [--cmb_type CMB_TYPE]
+
+  Generate simulations for act
+
+  optional arguments:
+    -h, --help            show this help message and exit
+    --iteration ITERATION
+                          iteration number
+    --set SET             cmb set number
+    --patch PATCH         patch
+    --season SEASON       season
+    --array ARRAY         array
+    --noise NOISE         noise parameter file, i.e. templateInputsMr3c
+    --signal SIGNAL       signal parameter file, i.e. signal.dict
+    --verbose             verbose option
+    --sim_type SIM_TYPE   type of data to simulate
+    --window              apply window function
+    --beam                do beam convolution
+    --diagonal            diagonal noise only
+    --split SPLIT         number of splits wanted
+    --modulation          apply modulation
+    --cmb_type CMB_TYPE   type of the cmb data of interests
+  08:26:57 actsims/#
+  #+END_EXAMPLE
+
+  #+BEGIN_SRC bash
+  python driver.py --signal inputParams/signal.dict --noise inputParams/templateInputsMr3c.dict --set 1
+  #+END_SRC
+
+- script used to generate input fits file
+  #+BEGIN_SRC bash
+  python signalSims.py ../inputParams/simsInput.dict
+  #+END_SRC
