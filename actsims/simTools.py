@@ -1,6 +1,3 @@
-
-
-
 import numpy as np, pickle
 from . import flipperDict
 
@@ -13,7 +10,6 @@ with warnings.catch_warnings():
 
 from pixell import enmap, fft, powspec, curvedsky# , resample
 
-import pdb
 import os
 import healpy
 
@@ -80,7 +76,7 @@ def getActpolCmbFgSim(beamfileDict,
     #Convolve with beam on full sky
     for fi, freq in enumerate(freqs):
         if doBeam:
-            beamFile = os.path.dirname(os.path.abspath(__file__))+"/"+beamfileDict[psa + '_' + freq]
+            beamFile = beamfileDict[psa + '_' + freq]
             if verbose:
                 print('getActpolCmbFgSim(): applying beam from %s' % beamFile)
             beamData = (np.loadtxt(beamFile ))[:,1]
@@ -100,7 +96,9 @@ def getActpolCmbFgSim(beamfileDict,
         #sharp.pyx in sharp.execute_dp (cython/sharp.c:12118)()
         #ValueError: ndarray is not C-contiguous
         #so loop over all freqs once for now.
+
     curvedsky.alm2map(almTebFullsky, output, spin = [0,2],  verbose = True)
+
         # outputThisfreq   = enmap.empty(( nTQUs,)+shape[-2:], wcs)
         # curvedsky.alm2map(almTebFullsky[fi,:,:], outputThisfreq, spin = [0,2],  verbose = True)
         # output[fi,...] = outputThisfreq
