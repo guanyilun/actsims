@@ -34,7 +34,6 @@ def getActpolCmbFgSim(beamfileDict,
 
     output   = enmap.empty((len(freqs), nTQUs,)+shape[-2:], wcs)
 
-
     if simType == 'cmb':
 
         filename = cmbDir + "/fullsky%s_alm_set%02d_%05d.fits" % ( cmbMaptype, cmbSet , iterationNum)
@@ -203,17 +202,17 @@ def getActpolNoiseSim(noiseSeed, psa, noisePsdDir, freqs, verbose = True,
         #first one is for IXI, QxQ, UXU only
         print("loading")
         if False:
-            print('loading' + noisePsdDir + '/bigMatrixNoisePsdsCovSqrtDiags_' + psa + '.fits HACKING') 
+            print('loading ' + noisePsdDir + '/bigMatrixNoisePsdsCovSqrtDiags_' + psa + '.fits HACKING')
             covsqrt = enmap.read_fits(noisePsdDir + '/bigMatrixNoisePsdsCovSqrtDiags_' + psa + '.fits' )
         if False:
-            print('loading' + noisePsdDir + '/bigMatrixNoisePsdsCovSqrt_' + psa + '.fits') 
+            print('loading ' + noisePsdDir + '/bigMatrixNoisePsdsCovSqrt_' + psa + '.fits')
             covsqrt = enmap.read_fits(noisePsdDir + '/bigMatrixNoisePsdsCovSqrt_' + psa + '.fits' )
 
         if noiseDiagsOnly:
-            print('loading' + noisePsdDir + '/noisePsds_flattened_covSqrtDiags_' + psa + '.fits') 
+            print('loading ' + noisePsdDir + '/noisePsds_flattened_covSqrtDiags_' + psa + '.fits')
             covsqrt = enmap.read_fits(noisePsdDir + '/noisePsds_flattened_covSqrtDiags_' + psa + '.fits' )
         elif True:
-            print('loading' + noisePsdDir + '/noisePsds_flattened_covSqrt_' + psa + '.fits') 
+            print('loading ' + noisePsdDir + '/noisePsds_flattened_covSqrt_' + psa + '.fits')
             covsqrt = enmap.read_fits(noisePsdDir + '/noisePsds_flattened_covSqrt_' + psa + '.fits' )
         print("loading done")
         

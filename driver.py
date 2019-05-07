@@ -14,7 +14,7 @@ parser.add_argument("--array", default='pa1', help="array")
 parser.add_argument("--noise", help="noise parameter file, i.e. templateInputsMr3c", required=True)
 parser.add_argument("--signal", help="signal parameter file, i.e. signal.dict", required=True)
 parser.add_argument("--verbose", action="store_true", default=False, help="verbose option")
-parser.add_argument("--sim_type", default="noise", help="type of data to simulate")
+parser.add_argument("--sim_type", default="all", help="type of data to simulate")
 parser.add_argument("--window", action="store_true", default=True, help="apply window function")
 parser.add_argument("--beam", action="store_true", default=True, help="do beam convolution")
 parser.add_argument("--diagonal", action="store_true", default=False, help="diagonal noise only")
@@ -28,6 +28,11 @@ args = parser.parse_args()
 # parameters #
 ##############
 
+# output options
+output_dir = "outputs"
+prefix = "test"
+
+# random seeds
 cmbSeedInd = 0
 fgSeedInd = 1
 phiSeedInd = 2
@@ -55,7 +60,7 @@ psaFreqs = freqsInPsas(psa, nDict['freqsInArrays'])
 # unroll psa names (normally stored as a nested  list of lists)
 psaList = [item for sublist in nDict['psaList'] for item in sublist]
 
-
+# check if psa of interest is in the psa list
 if psa not in psaList:
     raise ValueError('psa %s not found in psaList; options are ' % (psa ), psaList)
 
@@ -73,16 +78,29 @@ sampleMap = enmap.read_map(filename)
 # frequency!  This is because they are used to generate fullsky alm's
 foregroundSeed = (args.set, 0, fgSeedInd, args.iteration)
 
-if args.sim_type == 'noise':
 
+# check output folder
+if not os.path.exists(output_dir):
+    print("Warning: %s doesn't exist, creating one now" % output_dir)
+    os.makedirs(output_dir)
+
+
+# noise simulation
+if args.sim_type == "all" or args.sim_type == "noise":
     results = getActpolNoiseSim(noiseSeed=noiseSeed, psa=psa,
                                 noisePsdDir=nDict['dataMapDir'],
                                 freqs=psaFreqs, verbose=args.verbose,
                                 noiseDiagsOnly=args.diagonal,
                                 splitWanted=args.split)
 
-elif args.sim_type == 'cmb' or args.sim_type == 'foregrounds':
+    filename = os.path.join(output_dir, "%s_noise.pickle" % prefix)
+    with open(filename, "wb") as f:
+        print("Saving file: %s..." % filename)
+        pickle.dump(results, f)
 
+
+# cmb simulation
+if args.sim_type == 'all' or args.sim_type == 'cmb':
     results = getActpolCmbFgSim(beamfileDict=sDict['beamNames'],
                                 shape=sampleMap.shape, wcs=sampleMap.wcs,
                                 iterationNum=args.iteration,
@@ -93,16 +111,35 @@ elif args.sim_type == 'cmb' or args.sim_type == 'foregrounds':
                                 verbose=args.verbose,
                                 cmbMaptype=args.cmb_type,
                                 foregroundSeed=foregroundSeed,
-                                simType=args.sim_type,
+                                simType='cmb',
                                 foregroundPowerFile=sDict['foregroundPowerFile'],
                                 applyModulation=args.modulation)
 
-else:
-    raise ValueError("bad input")
+    filename = os.path.join(output_dir, "%s_cmb.pickle" % prefix)
+    with open(filename, "wb") as f:
+        print("Saving file: %s..." % filename)
+        pickle.dump(results, f)
 
-print(results)
 
-with open("output.pickle", "wb") as f:
-    pickle.dump(results, f)
+if args.sim_type == 'all' or args.sim_type == 'foregrounds':
+    results = getActpolCmbFgSim(beamfileDict=sDict['beamNames'],
+                                shape=sampleMap.shape, wcs=sampleMap.wcs,
+                                iterationNum=args.iteration,
+                                cmbDir=sDict['cmbDir'], freqs=psaFreqs,
+                                psa=psa, cmbSet=args.set,
+                                doBeam=args.beam,
+                                applyWindow=args.window,
+                                verbose=args.verbose,
+                                cmbMaptype=args.cmb_type,
+                                foregroundSeed=foregroundSeed,
+                                simType='foregrounds',
+                                foregroundPowerFile=sDict['foregroundPowerFile'],
+                                applyModulation=args.modulation)
+
+    filename = os.path.join(output_dir, "%s_foreground.pickle" % prefix)
+    with open(filename, "wb") as f:
+        print("Saving file: %s..." % filename)
+        pickle.dump(results, f)
+
 
 print("Done!")
