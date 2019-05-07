@@ -40,3 +40,6 @@
   #+BEGIN_SRC bash
   python signalSims.py ../inputParams/simsInput.dict
   #+END_SRC
+
+- move ~lensing.rand_map~ function to an independent script so i can
+  modify it to include other effects such as birefringence.
