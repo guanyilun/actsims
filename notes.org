@@ -50,3 +50,19 @@
   - rotate the tqu map
   - convert back to cmb_alm
   - pass this cmb_alm to the lens_curvedsky routine
+
+** [2019-05-08 Wed]
+- According to Toshiya: the order of the lensing and rotation is not
+  so important as long as the rotation spectrum is scale invariant
+  (the lensing effect is very small on the fluctuations whose spectrum
+  is scale invariant).
+
+- [ ] understand the outputs of actsims (noise / foregrounds / cmb)
+- [ ] check that the cosmic birefringence power spectrum looks correct
+- [ ] productionize:
+  - add MPI
+  - use correct pixel size and lmax
+- [ ] generate 101 realizations: different cmb and alpha realizations.
+  From Toshiya: Regarding alpha, we need to take into account the
+  scatter of alpha if we constrain e.g. A_CB, so can you use different
+  realization of alpha?
