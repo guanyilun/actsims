@@ -1,6 +1,3 @@
-
-
-
 import numpy as np, pickle
 from . import flipperDict
 
@@ -13,7 +10,6 @@ with warnings.catch_warnings():
 
 from pixell import enmap, fft, powspec, curvedsky# , resample
 
-import pdb
 import os
 import healpy
 
@@ -37,7 +33,6 @@ def getActpolCmbFgSim(beamfileDict,
     firstTime = True
 
     output   = enmap.empty((len(freqs), nTQUs,)+shape[-2:], wcs)
-
 
     if simType == 'cmb':
 
@@ -80,7 +75,7 @@ def getActpolCmbFgSim(beamfileDict,
     #Convolve with beam on full sky
     for fi, freq in enumerate(freqs):
         if doBeam:
-            beamFile = os.path.dirname(os.path.abspath(__file__))+"/"+beamfileDict[psa + '_' + freq]
+            beamFile = beamfileDict[psa + '_' + freq]
             if verbose:
                 print('getActpolCmbFgSim(): applying beam from %s' % beamFile)
             beamData = (np.loadtxt(beamFile ))[:,1]
@@ -100,7 +95,9 @@ def getActpolCmbFgSim(beamfileDict,
         #sharp.pyx in sharp.execute_dp (cython/sharp.c:12118)()
         #ValueError: ndarray is not C-contiguous
         #so loop over all freqs once for now.
+
     curvedsky.alm2map(almTebFullsky, output, spin = [0,2],  verbose = True)
+
         # outputThisfreq   = enmap.empty(( nTQUs,)+shape[-2:], wcs)
         # curvedsky.alm2map(almTebFullsky[fi,:,:], outputThisfreq, spin = [0,2],  verbose = True)
         # output[fi,...] = outputThisfreq
@@ -205,17 +202,17 @@ def getActpolNoiseSim(noiseSeed, psa, noisePsdDir, freqs, verbose = True,
         #first one is for IXI, QxQ, UXU only
         print("loading")
         if False:
-            print('loading' + noisePsdDir + '/bigMatrixNoisePsdsCovSqrtDiags_' + psa + '.fits HACKING') 
+            print('loading ' + noisePsdDir + '/bigMatrixNoisePsdsCovSqrtDiags_' + psa + '.fits HACKING')
             covsqrt = enmap.read_fits(noisePsdDir + '/bigMatrixNoisePsdsCovSqrtDiags_' + psa + '.fits' )
         if False:
-            print('loading' + noisePsdDir + '/bigMatrixNoisePsdsCovSqrt_' + psa + '.fits') 
+            print('loading ' + noisePsdDir + '/bigMatrixNoisePsdsCovSqrt_' + psa + '.fits')
             covsqrt = enmap.read_fits(noisePsdDir + '/bigMatrixNoisePsdsCovSqrt_' + psa + '.fits' )
 
         if noiseDiagsOnly:
-            print('loading' + noisePsdDir + '/noisePsds_flattened_covSqrtDiags_' + psa + '.fits') 
+            print('loading ' + noisePsdDir + '/noisePsds_flattened_covSqrtDiags_' + psa + '.fits')
             covsqrt = enmap.read_fits(noisePsdDir + '/noisePsds_flattened_covSqrtDiags_' + psa + '.fits' )
         elif True:
-            print('loading' + noisePsdDir + '/noisePsds_flattened_covSqrt_' + psa + '.fits') 
+            print('loading ' + noisePsdDir + '/noisePsds_flattened_covSqrt_' + psa + '.fits')
             covsqrt = enmap.read_fits(noisePsdDir + '/noisePsds_flattened_covSqrt_' + psa + '.fits' )
         print("loading done")
         

@@ -2,7 +2,7 @@
 # syncRoot = '/project/projectdirs/act/data/synced_maps/mr2_20170608_20170816/'
 syncRoot = '/project/projectdirs/act/data/synced_maps/mr3/'
 
-dataMapDir = '../templateDataMr3c/'
+dataMapDir = '/mnt/act3/users/engelen/templateDataMr3c/'
 
 useCrossLinkMaps = True
 
@@ -102,7 +102,6 @@ doJan2016Split3Tweak = False
 useRealNoiseMapInSim = False
 
 beamBase = '/global/cscratch1/sd/engelen/Beams/171206/beam_tform_171206_'
-
 
 
 beamList = {'deep1_s13_pa1_f150': beamBase + 'pa1_150GHz_3_310_s13_map.txt', \

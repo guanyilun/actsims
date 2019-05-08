@@ -1,7 +1,7 @@
 
 syncRoot = '/home/msyriac/data/act/maps/mr3/'
-dataMapDir = '../templateDataMr3c/'
-
+# dataMapDir = '../templateDataMr3c/'
+dataMapDir = '/mnt/act3/users/engelen/templateDataMr3c/'
 useCrossLinkMaps = True
 
 crossLinkRoot = '/home/msyriac/data/act/maps/steve/'

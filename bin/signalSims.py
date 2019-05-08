@@ -7,35 +7,35 @@ import matplotlib.pyplot as plt
 import sys
 sys.path.append('../../')
 
-from pixell import enmap, utils , lensing
+from pixell import enmap, utils
+from actsims import lensing
 from pixell import powspec, curvedsky
 import numpy as np
 import healpy
 import matplotlib.pyplot as plt
 import os
-from mpi4py import MPI
-sys.path.append('../../aveTools/')
-import aveTools
+# from mpi4py import MPI
+# sys.path.append('../../aveTools/')
+# import aveTools
 import pickle
 from actsims import flipperDict
 
 print('hacking paths--remove this after merging to master')
-# from actsims import simTools
+from actsims import simTools
 
-sys.path.append('../actsims/')
-import simTools
+# sys.path.append('../actsims/')
+# import simTools
 
 
 # p = flipper.flipperDict.flipperDict()
 p = flipperDict.flipperDict()
 
-p.read_from_file('../inputParams/' + sys.argv[1])
-
+p.read_from_file(sys.argv[1])
 import time
 startTime = time.clock()
 
-iMin, iMax, delta, rank, size = aveTools.mpiMinMax(MPI.COMM_WORLD, p['iStop'])
-
+# iMin, iMax, delta, rank, size = aveTools.mpiMinMax(MPI.COMM_WORLD, p['iStop'])
+iMin, iMax, delta, rank, size = (0,1,0,0,1)
 
 
 def tqu2teb(tqu, LMAX, wantCl = False, wantAlmAndCl = False):
@@ -64,6 +64,12 @@ shape, wcs = enmap.fullsky_geometry(p['PIX_SIZE']*utils.arcmin)
 ps = powspec.read_camb_full_lens(p['inputSpecRoot'] + "_lenspotentialCls.dat")
 lPs = powspec.read_spectrum(p['inputSpecRoot'] + "_lensedCls.dat")
 
+# rotational field power spectrum
+lmax = ps.shape[-1]
+ell = np.arange(2, lmax)
+ps_rot = 2.3E-5*2*np.pi/(ell*(ell+1))
+
+
 doAll = True    
 cmbSet = 0 # still to-do: loop over sets.
 
@@ -86,15 +92,19 @@ for cmbSet in range(p['START_SET'], p['STOP_SET']):
         cmbSeed = (cmbSet, 0, simTools.cmbSeedInd, iii)
 
 
-        uTquMap, lTquMap, pMap = lensing.rand_map((3,)+shape, wcs, ps, lmax=p['LMAX'], output="ulp", verbose=True,
-                                                          phi_seed = phiSeed,
-                                                          seed = cmbSeed)
+        # uTquMap, lTquMap, pMap = lensing.rand_map((3,)+shape, wcs, ps, lmax=p['LMAX'], output="ulp", verbose=True,
+        #                                                   phi_seed = phiSeed,
+        #                                                   seed = cmbSeed)
 
-
+        lTquMap = lensing.rand_map((3,)+shape, wcs, ps, doRotation=True, ps_rot=ps_rot,
+                                   lmax=p['LMAX'], output="l",
+                                   verbose=True, phi_seed = phiSeed,
+                                   seed = cmbSeed)[0]
                 
-        mapList = [uTquMap, lTquMap, pMap]
+        # mapList = [uTquMap, lTquMap, pMap]
+        mapList = [lTquMap]
 
-        mapNameList = ['fullskyUnlensedCMB', 'fullskyLensedCMB', 'fullskyPhi']
+        mapNameList = ['fullskyLensedCMB']
 
         if False:
             print('temporarily doing a gaussian random field -- lensed = unlensed')
