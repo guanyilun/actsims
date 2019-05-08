@@ -43,3 +43,10 @@
 
 - move ~lensing.rand_map~ function to an independent script so i can
   modify it to include other effects such as birefringence.
+
+  Plan:
+  - after cmb_alm is generated, convert to a map of tqu.
+  - generate gaussian random rotation field with given a power spectrum
+  - rotate the tqu map
+  - convert back to cmb_alm
+  - pass this cmb_alm to the lens_curvedsky routine

@@ -64,6 +64,12 @@ shape, wcs = enmap.fullsky_geometry(p['PIX_SIZE']*utils.arcmin)
 ps = powspec.read_camb_full_lens(p['inputSpecRoot'] + "_lenspotentialCls.dat")
 lPs = powspec.read_spectrum(p['inputSpecRoot'] + "_lensedCls.dat")
 
+# rotational field power spectrum
+lmax = ps.shape[-1]
+ell = np.arange(2, lmax)
+ps_rot = 2.3E-5*2*np.pi/(ell*(ell+1))
+
+
 doAll = True    
 cmbSet = 0 # still to-do: loop over sets.
 
@@ -90,9 +96,10 @@ for cmbSet in range(p['START_SET'], p['STOP_SET']):
         #                                                   phi_seed = phiSeed,
         #                                                   seed = cmbSeed)
 
-        lTquMap = lensing.rand_map((3,)+shape, wcs, ps, lmax=p['LMAX'], output="l", verbose=True,
-                                                          phi_seed = phiSeed,
-                                                          seed = cmbSeed)[0]
+        lTquMap = lensing.rand_map((3,)+shape, wcs, ps, doRotation=True, ps_rot=ps_rot,
+                                   lmax=p['LMAX'], output="l",
+                                   verbose=True, phi_seed = phiSeed,
+                                   seed = cmbSeed)[0]
                 
         # mapList = [uTquMap, lTquMap, pMap]
         mapList = [lTquMap]

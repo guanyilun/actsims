@@ -73,7 +73,6 @@ filename = os.path.join(nDict['dataMapDir'],
                                                                              freq=psaFreqs[0]))
 sampleMap = enmap.read_map(filename)
 
-
 # Note: Foreground seed is the same for every sky patch, season, and
 # frequency!  This is because they are used to generate fullsky alm's
 foregroundSeed = (args.set, 0, fgSeedInd, args.iteration)
@@ -93,11 +92,9 @@ if args.sim_type == "all" or args.sim_type == "noise":
                                 noiseDiagsOnly=args.diagonal,
                                 splitWanted=args.split)
 
-    filename = os.path.join(output_dir, "%s_noise.pickle" % prefix)
-    with open(filename, "wb") as f:
-        print("Saving file: %s..." % filename)
-        pickle.dump(results, f)
-
+    filename = os.path.join(output_dir, "%s_noise.fits" % prefix)
+    print("Saving file: %s..." % filename)
+    enmap.write_map(filename, results)
 
 # cmb simulation
 if args.sim_type == 'all' or args.sim_type == 'cmb':
@@ -115,10 +112,9 @@ if args.sim_type == 'all' or args.sim_type == 'cmb':
                                 foregroundPowerFile=sDict['foregroundPowerFile'],
                                 applyModulation=args.modulation)
 
-    filename = os.path.join(output_dir, "%s_cmb.pickle" % prefix)
-    with open(filename, "wb") as f:
-        print("Saving file: %s..." % filename)
-        pickle.dump(results, f)
+    filename = os.path.join(output_dir, "%s_cmb.fits" % prefix)
+    print("Saving file: %s..." % filename)
+    enmap.write_map(filename, results)
 
 
 if args.sim_type == 'all' or args.sim_type == 'foregrounds':
@@ -136,10 +132,9 @@ if args.sim_type == 'all' or args.sim_type == 'foregrounds':
                                 foregroundPowerFile=sDict['foregroundPowerFile'],
                                 applyModulation=args.modulation)
 
-    filename = os.path.join(output_dir, "%s_foreground.pickle" % prefix)
-    with open(filename, "wb") as f:
-        print("Saving file: %s..." % filename)
-        pickle.dump(results, f)
+    filename = os.path.join(output_dir, "%s_foregrounds.fits" % prefix)
+    print("Saving file: %s..." % filename)
+    enmap.write_map(filename, results)
 
 
 print("Done!")

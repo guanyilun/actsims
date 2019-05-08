@@ -15,10 +15,12 @@ inputSpecRoot = '../data/cosmo2017_10K_acc3'
 
 
 
-LMAX = 8000
+# LMAX = 8000
+LMAX = 3000  # temp
 LMAX_WRITE = 5100
 LMAX_NYQ = 10800
-PIX_SIZE = 1.0
+# PIX_SIZE = 1.0
+PIX_SIZE = 5.0  # temp
 
 iStart = 0
 iStop = 2048
