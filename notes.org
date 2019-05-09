@@ -66,3 +66,8 @@
   From Toshiya: Regarding alpha, we need to take into account the
   scatter of alpha if we constrain e.g. A_CB, so can you use different
   realization of alpha?
+
+- Discussion with Alex/DW/Mat:
+  - ~simTools.py~ is deprecated
+  - no need to save rotated alms into disk
+  - best place to add is right after loading at [[https://github.com/ACTCollaboration/actsims/blob/0cb2a301c24fbc31509a090b6c247dd4542c1440/actsims/signal.py#L212][here]]
