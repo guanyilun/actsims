@@ -4,6 +4,7 @@ from soapack import interfaces as sints
 import healpy as hp
 import warnings
 from collections import OrderedDict as ODict
+from . import util
 
 actsim_root = os.path.dirname(os.path.realpath(__file__))
 
@@ -229,7 +230,8 @@ class SignalGen(object):
                 curvedsky.alm2map(alm_signal, cmb_map)
 
                 # apply the rotation field
-                cmb_map = enmap.rotate_pol(cmb_map, 2*alpha_map)
+                # cmb_map = enmap.rotate_pol(cmb_map, alpha_map)
+                cmb_map = util.rotate_pol(cmb_map, alpha_map, nbins=8)
 
                 # convert back to alm
                 lmax = hp.Alm.getlmax(alm_signal.shape[-1])

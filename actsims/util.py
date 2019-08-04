@@ -110,3 +110,20 @@ def mkdir(dirpath,comm=None):
         if not (exists):
             os.makedirs(dirpath)
     return exists
+
+def rotate_pol(emap, angle, comps=[-2,-1], nbins=0):
+    res = emap.copy()
+    shape = angle.shape
+    if nbins > 0:
+        bsize = int(np.ceil(shape[-2]/nbins))
+        for i1 in range(0, shape[-2], bsize):
+            i2 = min(shape[-2], i1+bsize)
+            c, s = np.cos(2*angle[...,i1:i2,:]), np.sin(2*angle[...,i1:i2,:])
+            res[...,comps[0],i1:i2,:] = c*emap[...,comps[0],i1:i2,:]-s*emap[...,comps[1],i1:i2,:]
+            res[...,comps[1],i1:i2,:] = s*emap[...,comps[0],i1:i2,:]+c*emap[...,comps[1],i1:i2,:]
+            del c, s
+    else:
+        c, s = np.cos(2*angle), np.sin(2*angle)
+        res[...,comps[0],:,:] = c*emap[...,comps[0],:,:]-s*emap[...,comps[1],:,:]
+        res[...,comps[1],:,:] = s*emap[...,comps[0],:,:]+c*emap[...,comps[1],:,:]
+    return res

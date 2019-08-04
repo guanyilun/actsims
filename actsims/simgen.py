@@ -21,7 +21,9 @@ class SimGen(object):
     def __init__(self, version, model="act_mr3", cmb_type='LensedCMB', dobeam=True, add_foregrounds=True, apply_window=True, max_cached=1,
                  extract_region = None,
                  extract_region_shape = None,
-                 extract_region_wcs = None):
+                 extract_region_wcs = None,
+                 apply_rotation = False,
+                 alpha_map = None):
         
         """
         version: The version identifier for the filename of covsqrts on disk
@@ -32,7 +34,7 @@ class SimGen(object):
         max_cached: The maximum number of cached sim/or alms
         """
         self.noise_gen  = noise.NoiseGen(version=version,model=model,ncache=max_cached,verbose=False)
-        self.signal_gen = signal.SignalGen(cmb_type=cmb_type, dobeam=dobeam, add_foregrounds=add_foregrounds, apply_window=apply_window, max_cached=max_cached, model=model)
+        self.signal_gen = signal.SignalGen(cmb_type=cmb_type, dobeam=dobeam, add_foregrounds=add_foregrounds, apply_window=apply_window, max_cached=max_cached, model=model, apply_rotation=apply_rotation, alpha_map=alpha_map)
         self.default_geometries = {}
         
         if (extract_region is not None) or (extract_region_shape is not None):

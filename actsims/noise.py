@@ -3,7 +3,7 @@ import os,sys
 from pixell import enmap,enplot,fft as pfft
 from soapack import interfaces as sints
 from actsims import util
-from enlib import bench
+# from enlib import bench
 import warnings
 if 'fftw' not in pfft.engine: warnings.warn("No pyfftw found. Using much slower numpy fft engine.")
 
