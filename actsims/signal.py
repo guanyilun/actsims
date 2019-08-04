@@ -5,34 +5,45 @@ import healpy as hp
 import warnings
 from collections import OrderedDict as ODict
 from . import util
+from itertools import product
+from actsims.util import seed_tracker as seedgen
 
 actsim_root = os.path.dirname(os.path.realpath(__file__))
 
 class SignalGen(object):
     # a helper class to quickly generate sims for given patch
-    def __init__(self, cmb_type='LensedCMB', dobeam=True, add_foregrounds=True, apply_window=True, max_cached=1, model="act_mr3", extract_region=None,extract_region_shape=None, extract_region_wcs=None, apply_rotation=False, alpha_map=None):
+    def __init__(self, cmb_type='LensedCMB', dobeam=True, add_foregrounds=True, apply_window=True, max_cached=1, model="act_mr3", apply_rotation=False, alpha_map=None):
         """
         model: The name of an implemented soapack datamodel
-        extract_region: An optional map whose footprint on to which the sims are made
-        extract_region_shape: Instead of passing a map for extract_region, one can pass its shape and wcs
-        extract_region_wcs: Instead of passing a map for extract_region, one can pass its shape and wcs
         ncache: The number of 
+        """
+        #warnings.warn('signal caching is disabled. Check issue #29 on actsims repo')
+        #max_cached = 0
 
-        """ 
-        self.data_model = sints.models[model](region=extract_region, region_shape=extract_region_shape,region_wcs=extract_region_wcs)
+        self.data_model = sints.models[model]()
         self.cmb_types   = ['LensedCMB', 'UnlensedCMB', 'LensedUnabberatedCMB']
         paths            = sints.dconfig['actsims']
         self.signal_path = paths['signal_path']
+        self._model      = model
         assert(self.signal_path is not None)
         assert(cmb_type in self.cmb_types)
 
+        self.supported_sims = []
+        # ACT
+        patches = {'s13':['deep1','deep5','deep6'],'s14':['deep56'],'s15':['deep56','boss','deep8'],'s16':['cmb']}
+        arrays = {'s13':['pa1_f150'],'s14':['pa1_f150','pa2_f150'],'s15':['pa1_f150','pa2_f150','pa3_f150','pa3_f090'],'s16':['pa2_f150','pa3_f150','pa3_f090']}
+        for season in patches.keys():
+            for patch in patches[season]:
+                for array in arrays[season]:
+                    sstr = "%s_%s_%s" % (season,patch,array)
+                    self.supported_sims.append(sstr)
 
-        self.supported_sims = ['s13_pa1_deep1_f150', 's13_pa1_deep5_f150', 's13_pa1_deep6_f150', 's14_pa1_deep56_f150', 's14_pa2_deep56_f150', \
-                               's15_pa1_boss_f150', 's15_pa1_deep56_f150', 's15_pa1_deep8_f150', 's15_pa2_boss_f150', 's15_pa2_deep56_f150', \
-                               's15_pa2_deep8_f150','s15_pa3_boss_f090', 's15_pa3_boss_f150', 's15_pa3_deep56_f090', 's15_pa3_deep56_f150', \
-                               's15_pa3_deep8_f090', 's15_pa3_deep8_f150','s16_pa2_cmb_f150','s16_pa3_cmb_f150','s16_pa3_cmb_f090']
+        # Planck
+        for freq in [30,44,70,100,143,217,353,545,857]:
+            self.supported_sims.append("planck_planck_planck_%s" % (str(freq).zfill(3)))
+
         self.supported_sims.sort()
-        self.freqs           = ['f090', 'f150']
+        self.freqs            = ['f090','f150'] ## please don't change the ordering here !!
         self.cmb_type         = cmb_type
         self.max_cached       = max_cached
         self.alms_base        = ODict()
@@ -49,8 +60,8 @@ class SignalGen(object):
         self.apply_rotation   = apply_rotation
         self.alpha_map        = alpha_map
 
-    def is_supported(self, sesaon, array, patch, freq):
-        signal_idx      = self.__combine_idxes__(sesaon, patch, array , freq)
+    def is_supported(self, season, patch,array, freq):
+        signal_idx      = self.__combine_idxes__(season, patch, array , freq)
         supported = signal_idx in self.supported_sims
         if not supported:
             print("unknown type of sims: {} ".format(signal_idx))
@@ -67,7 +78,7 @@ class SignalGen(object):
     def get_signal_idx(self, season, patch, array, freq, set_idx, sim_num):
         return '_'.join([season, patch, array, freq, 'set0%d'%set_idx, '%05d'%sim_num])
 
-    def get_signal_sim(self, season, patch, array, freq, set_idx, sim_num, save_alm=False, save_map=False,oshape=None,owcs=None):
+    def get_signal_sim(self, season, patch, array, freq, set_idx, sim_num, oshape, owcs, save_alm=False, save_map=False, fgflux="15mjy", add_poisson_srcs=False):
         assert(self.is_supported(season, patch, array, freq))
 
         base_alm_idx = self.get_base_alm_idx(set_idx, sim_num) 
@@ -84,21 +95,25 @@ class SignalGen(object):
             alm_patch = self.alms_patch[signal_idx].copy()
         else:
             freq_idx  = 0 if freq == 'f090' else 1
+
             if base_alm_idx not in self.alms_base:
-                self.manage_cache(self.alms_base, self.max_cached-1)
-                self.load_alms_base(set_idx, sim_num)
-            alm_patch = self.alms_base[base_alm_idx][freq_idx].copy()
+                self.load_alms_base(set_idx, sim_num, fgflux=fgflux)         
+                alm_patch = self.alms_base[base_alm_idx][freq_idx].copy()
+                self.manage_cache(self.alms_base, self.max_cached)
+            else:
+                alm_patch = self.alms_base[base_alm_idx][freq_idx].copy()
+            if add_poisson_srcs: 
+                alm_patch[0] += self.get_poisson_srcs_alms(set_idx, sim_num, patch, alm_patch[0].shape, oshape=oshape, owcs=owcs)
             if self.dobeam:
                 print ("apply beam for alm {}".format(signal_idx))
                 alm_patch = self.__apply_beam__(alm_patch, season, patch, array, freq)
             else: pass
             if save_alm: 
-                self.manage_cache(self.alms_patch, self.max_cached-1) 
-                self.alms_patch[signal_idx] = alm_patch.copy()
-        
+                self.alms_patch[signal_idx] = alm_patch.copy() 
+                self.manage_cache(self.alms_patch, self.max_cached) 
         return self.__signal_postprocessing__(patch, signal_idx, alm_patch, save_map=save_map,oshape=oshape,owcs=owcs, apply_window=self.apply_window)
  
-    def get_cmb_sim(self, season, patch, array, freq, set_idx, sim_num, save_alm=False,oshape=None,owcs=None):
+    def get_cmb_sim(self, season, patch, array, freq, set_idx, sim_num, oshape, owcs, save_alm=False ):
         assert(self.is_supported(season, patch, array, freq))
         print("[WARNING] get_cmb_sim() is implemented for debugging purpose. Use get_signal_sim() for the production run")
 
@@ -117,13 +132,12 @@ class SignalGen(object):
                 alm_cmb = self.__apply_beam__(alm_cmb, season, patch, array, freq)
             else: pass
             if save_alm: 
-                self.manage_cache(self.alms_cmb, self.max_cached-1) 
                 self.alms_cmb[signal_idx] = alm_cmb.copy()
-
+                self.manage_cache(self.alms_cmb, self.max_cached) 
         return self.__signal_postprocessing__(patch, signal_idx, alm_cmb, save_map=False,oshape=oshape,owcs=owcs, apply_window=self.apply_window)
 
 
-    def get_fg_sim(self, season, patch, array, freq, set_idx, sim_num, save_alm=False,oshape=None,owcs=None):
+    def get_fg_sim(self, season, patch, array, freq, set_idx, sim_num, oshape, owcs, save_alm=False, fgflux="15mjy"):
         assert(self.is_supported(season, patch, array, freq))
         print("[WARNING] get_fg_sim() is implemented for debugging purpose. Use get_signal_sim() for the production run")
 
@@ -133,7 +147,7 @@ class SignalGen(object):
             print ("loading precomputed alm cmb {}".format(signal_idx))
             alm_fg = self.alms_fg[signal_idx].copy()
         else:
-            alm_fg90_150  = self.load_alm_fg(set_idx, sim_num) 
+            alm_fg90_150  = self.load_alm_fg(set_idx, sim_num, fgflux=fgflux) 
             alm_out = np.zeros((3, len(alm_fg90_150[-1])), dtype = np.complex128) 
 
             freq_idx      = 1 if freq == 'f150' else 0
@@ -145,18 +159,17 @@ class SignalGen(object):
                 alm_fg = self.__apply_beam__(alm_fg, season, patch, array, freq)
             else: pass
             if save_alm: 
-                self.manage_cache(self.alms_fg, self.max_cached-1) 
                 self.alms_fg[signal_idx] = alm_fg.copy()
-
+                self.manage_cache(self.alms_fg, self.max_cached) 
         return self.__signal_postprocessing__(patch, signal_idx, alm_fg, save_map=False,oshape=oshape,owcs=owcs, apply_window=self.apply_window)
         
-    def get_phi_sim(self, patch, set_idx, sim_num, save_alm=False, oshape=None, owcs=None):
+    def get_phi_sim(self, patch, set_idx, sim_num, oshape, owcs, save_alm=False):
         return self.__get_lens_potential_sim__(patch, set_idx, sim_num, mode='phi', save_alm=save_alm, oshape=oshape, owcs=owcs)
 
-    def get_kappa_sim(self, patch, set_idx, sim_num, save_alm=False, oshape=None, owcs=None): 
+    def get_kappa_sim(self, patch, set_idx, sim_num, oshape, owcs, save_alm=False): 
         return self.__get_lens_potential_sim__(patch, set_idx, sim_num, mode='kappa', save_alm=save_alm, oshape=oshape, owcs=owcs)
     
-    def __get_lens_potential_sim__(self, patch, set_idx, sim_num, mode='phi', save_alm=False, oshape=None, owcs=None):
+    def __get_lens_potential_sim__(self, patch, set_idx, sim_num, oshape, owcs, mode='phi', save_alm=False):
         assert(mode in ['phi', 'kappa'])
         lenp_idx     = self.get_base_alm_idx(set_idx, sim_num)
         alms_lenp    = self.alms_phi     if mode == 'phi' else self.alms_kappa       
@@ -169,21 +182,21 @@ class SignalGen(object):
         else:
             alm_lenp = loader_func(set_idx, sim_num, cache=False, ret_alm=True)
             if save_alm: 
-                self.manage_cache(alms_lenp, self.max_cached-1) 
                 alms_lenp[lenp_idx] = alm_lenp.copy()
-
+                self.manage_cache(alms_lenp, self.max_cached) 
         return self.__signal_postprocessing__(patch, lenp_idx, alm_lenp, save_map=False, oshape=oshape,owcs=owcs, apply_window=False)
 
     def __apply_beam__(self, alm_patch, season, patch, array, freq):
         lmax      = hp.Alm.getlmax(alm_patch.shape[-1])
         l_beam    = np.arange(0, lmax+100, dtype=np.float)
-        beam_data = self.data_model.get_beam(l_beam, season, patch, '{}_{}'.format(array, freq)) 
+        # NEVER SANITIZE SIMULATED BEAM!!! 
+        beam_data = self.data_model.get_beam(l_beam, season=season, patch=patch, array='{}_{}'.format(array, freq) if array!='planck' else freq,sanitize=False) 
         
         for idx in range(alm_patch.shape[0]):
             alm_patch[idx] = hp.sphtfunc.almxfl(alm_patch[idx].copy(), beam_data)
         return alm_patch 
 
-    def __signal_postprocessing__(self, patch, signal_idx, alm_patch, save_map, oshape=None, owcs=None, apply_window=True):
+    def __signal_postprocessing__(self, patch, signal_idx, alm_patch, save_map, oshape, owcs, apply_window=True):
         signal = self.get_template(patch,shape=oshape,wcs=owcs)
         signal = signal if len(alm_patch.shape) > 1 else signal[0,...]
         curvedsky.alm2map(alm_patch, signal, spin = [0,2], verbose=True)
@@ -201,15 +214,16 @@ class SignalGen(object):
                 del kmap
 
         if save_map: 
-            self.manage_cache(self.signals, self.max_cached-1)
             self.signals[signal_idx] = signal.copy()
+            self.manage_cache(self.signals, self.max_cached)
         return signal
 
 
-    def load_alms_base(self, set_idx, sim_idx, cache=True, fg_override=None, ret_alm=False):
+    def load_alms_base(self, set_idx, sim_idx, cache=True, fg_override=None, ret_alm=False, fgflux="15mjy",  alm_file_postfix=''):
         # note: beam is set to false
         print("loading alm base")
-        cmb_file   = os.path.join(self.signal_path, 'fullsky%s_alm_set%02d_%05d.fits' %(self.cmb_type, set_idx, sim_idx))
+        #cmb_file   = os.path.join(self.signal_path, 'fullsky%s_alm_set%02d_%05d%s.fits' %(self.cmb_type, set_idx, 0, alm_file_postfix))
+        cmb_file   = os.path.join(self.signal_path, 'fullsky%s_alm_set%02d_%05d%s.fits' %(self.cmb_type, set_idx, sim_idx, alm_file_postfix))
         print("loading %s" %cmb_file)
         alm_signal = np.complex128(hp.fitsfunc.read_alm(cmb_file, hdu = (1,2,3))) 
 
@@ -244,7 +258,7 @@ class SignalGen(object):
         add_foregrounds = fg_override if fg_override is not None else self.add_foregrounds
         if add_foregrounds:
             print("adding fgs to the base")     
-            alm_fg90_150 = self.load_alm_fg(set_idx, sim_idx)
+            alm_fg90_150 = self.load_alm_fg(set_idx, sim_idx, fgflux=fgflux)
             lmax_sg      = hp.Alm.getlmax(alm_signal.shape[-1])
             alm_out      = np.zeros((len(self.freqs), 3, len(alm_fg90_150[-1])), dtype = np.complex128) 
             lmax_fg      = hp.Alm.getlmax(alm_fg90_150.shape[-1])
@@ -266,7 +280,7 @@ class SignalGen(object):
 
             alm_signal = alm_out.copy()
             del alm_out, alm_fg90_150
-
+            
         if cache: self.alms_base[self.get_base_alm_idx(set_idx, sim_idx)] = alm_signal.copy()
         
         if ret_alm: return alm_signal
@@ -297,24 +311,33 @@ class SignalGen(object):
         if ret_alm: return alm_kappa
         del alm_kappa
     
-    def load_alm_fg(self, set_idx, sim_idx):
+    def load_alm_fg(self, set_idx, sim_idx, fgflux):
         print("loading fg alm")
-        seed         = (set_idx, 0, 1, sim_idx)# copying the structure from simtools
-        fg_file      = os.path.join(actsim_root, '../data/fg.dat')
+        seed = seedgen.get_fg_seed(set_idx, sim_idx, fgflux)
+        if fgflux == "15mjy":
+            print("loading FG with 15mJy fluxcut")
+            fg_file      = os.path.join(actsim_root, '../data/fg.dat')
+        elif fgflux=="100mjy":
+            print("loading FG with 100mJy fluxcut")
+            fg_file      = os.path.join(actsim_root, '../data/highflux_fg.dat')
+        elif fgflux=="quick-srcfree":
+            print("loading FG with srcfree fg")
+            fg_file      = os.path.join(actsim_root, '../data/quick_srcfree_combined_d56.dat')
+        else:
+            assert(False) ### :o
         fg_power     = powspec.read_spectrum(fg_file, ncol = 3, expand = 'row')
-        print(fg_power.shape,seed)
         alm_fg90_150 = curvedsky.rand_alm_healpy(fg_power, seed = seed)#, lmax=lmax_sg)
         return alm_fg90_150
     
-    def get_template(self, patch,shape=None,wcs=None):
+    def get_template(self, patch, shape, wcs):
+        template = None
         if patch not in self.templates:
-            self.manage_cache(self.templates, self.max_cached-1) 
-            if shape is None:
-                template      = self.data_model.get_mask(patch)
-                shape,wcs = template.shape,template.wcs
-            self.templates[patch] = enmap.empty((3,) + shape[-2:], wcs)
-        else: pass
-        return self.templates[patch].copy()
+            self.templates[patch] = enmap.empty((3,) + shape[-2:], wcs) 
+            template = self.templates[patch].copy()
+            self.manage_cache(self.templates, self.max_cached) 
+        else: 
+            template = self.templates[patch].copy()
+        return template
 
     def manage_cache(self, odict, max_cached=None):
         if max_cached is None: max_cached = self.max_cached
@@ -334,3 +357,131 @@ class SignalGen(object):
             del self.signals[key]
 
 
+    def get_poisson_srcs_alms(self, set_idx, sim_num, patch, alm_shape, oshape, owcs):
+
+        def deltaTOverTcmbToJyPerSr(freqGHz,T0 = 2.726):
+            """
+            @brief the function name is self-eplanatory
+            @return the converstion factor
+            stolen from Flipper -- van engelen
+            """
+            kB = 1.380658e-16
+            h = 6.6260755e-27
+            c = 29979245800.
+            nu = freqGHz*1.e9
+            x = h*nu/(kB*T0)
+            cNu = 2*(kB*T0)**3/(h**2*c**2)*x**4/(4*(np.sinh(x/2.))**2)
+            cNu *= 1e23
+            return cNu
+
+        TCMB_uk = 2.72e6
+        
+        if oshape[0] > 3:
+            #then this is a multichroic array, and sadly we only have this at 150 GHz for now
+            raise Exception('get_poisson_srcs_alms only implemented for 150 GHz so far ' \
+                            + '(that is the model we currently have for radio sources) ')
+        else:
+            freq_ghz = 148
+        
+        #ideally this RNG stuff would be defined in a central place to
+        #avoid RNG collisions.  Old version is currently commented out at top of
+        #simgen.py
+        templ = self.get_template(patch, shape = oshape, wcs = owcs)
+        
+        templ[:] = 0
+        seed = seedgen.get_poisson_seed(set_idx, sim_num)
+        np.random.seed(seed = seed)
+
+        #Wasn't sure how to codify this stuff outside this routine - hardcoded for now
+        S_min_Jy = .001
+        S_max_Jy = .015
+
+
+        tucci = np.loadtxt(os.path.join(os.path.dirname(os.path.abspath(__file__)) , '../data/ns_148GHz_modC2Ex.dat'))
+
+        S = tucci[:, 0]
+        dS = S[1:] - S[0:-1]
+        dS = np.append(dS, [0.])
+        dNdS = tucci[:, 1]
+
+        mean_numbers_per_patch = dNdS * enmap.area(templ.shape, templ.wcs) * dS
+
+        numbers_per_fluxbin = np.random.poisson(mean_numbers_per_patch)
+
+        #note pixel areas not constant for pixell maps
+        pixel_areas = enmap.pixsizemap(templ.shape, templ.wcs)
+        
+        for si, fluxval in enumerate(S[S <= S_max_Jy]):
+            xlocs = np.random.randint( templ.shape[-1], size = numbers_per_fluxbin[si])
+            ylocs = np.random.randint( templ.shape[-2], size = numbers_per_fluxbin[si])
+
+            #add the value in jy / sr, i.e. divide by the solid angle of a pixel.
+            templ[0, ylocs, xlocs] += fluxval / pixel_areas[ylocs, xlocs]
+
+        map_factor = TCMB_uk / deltaTOverTcmbToJyPerSr(freq_ghz)
+        templ *= map_factor
+
+        #GET ALMs
+        output = curvedsky.map2alm(templ[0], lmax = hp.Alm.getlmax(alm_shape[0]))
+
+        return output
+
+
+class Sehgal09Gen(SignalGen):
+    # Switching out act baseline cmb and fg sims with Sehgal 09 sims with following modifications
+    # 1) Included Lensed Q and U maps
+    # 2) CIB and TSZ maps are scaled by 0.75 following Section 2.4.1 of https://arxiv.org/abs/1808.07445
+    # 3) 15mJy cuts are applied to CIB and Radio point sources. Sources are identified at 150GHz
+    # 4) all maps are in deltaT/Tcmb unit
+    def __init__(self, cmb_type='LensedUnabberatedCMB', dobeam=True, add_foregrounds=True, apply_window=True, max_cached=1, model="act_mr3", apply_rotation=False, alpha_map=None,  eulers=None):
+        """
+        model: The name of an implemented soapack datamodel
+        eulers            : rotate alm by euler angles (psi, theta, phi) (i.e (0,15,0) ->  maps are rotated by 15 deg in theta) 
+        """
+        super(Sehgal09Gen, self).__init__(cmb_type=cmb_type, dobeam=dobeam, add_foregrounds=add_foregrounds, apply_window=apply_window, max_cached=max_cached, model=model,\
+                apply_rotation=apply_rotation, alpha_map=alpha_map)
+
+        self.data_model = sints.models[model]()
+        self.cmb_types   = ['LensedUnabberatedCMB']
+        paths            = sints.dconfig['actsims']
+        self.signal_path = paths['sehgal09_path']
+        self.eulers      = tuple(np.array(eulers, dtype=np.int)) if eulers is not None else (0,0,0)
+        self.allowed_rots = []
+        rot_angs         = range(0, 90, 15)
+        for psi, theta in product(rot_angs, rot_angs):
+            self.allowed_rots.append(((psi,theta,0)))
+
+
+        assert(self.signal_path is not None)
+        assert(cmb_type in self.cmb_types)
+        assert(self.eulers in self.allowed_rots)
+        
+    def load_alm_fg(self, set_idx, sim_idx, fgflux='sehgal09'):
+        print("loading fg alm") 
+        alm_fg90_150 = None
+        if fgflux == 'sehgal09':
+            alm_file_postfix = '' if self.eulers == (0,0,0) else '_rot_{}_{}_{}'.format(self.eulers[0], self.eulers[1], self.eulers[2])
+            #fg_file_temp   = os.path.join(self.signal_path, 'fullskyCOMBINED_NODUST_f{}_set%02d_%05d%s.fits' %(set_idx, 0, alm_file_postfix))
+            fg_file_temp   = os.path.join(self.signal_path, 'fullskyCOMBINED_NODUST_f{}_set%02d_%05d%s.fits' %(set_idx, set_idx, alm_file_postfix))
+            print (fg_file_temp)
+            
+            alm_fg090    = np.complex128(hp.fitsfunc.read_alm(fg_file_temp.format('%03d'%90), hdu = (1))) 
+            alm_fg150    = np.complex128(hp.fitsfunc.read_alm(fg_file_temp.format('%03d'%148), hdu = (1))) 
+            alm_fg90_150 = np.stack([alm_fg090, alm_fg150]) 
+        elif fgflux == 'sehgal09_gauss':
+            ## generate GRF FGs matching sehgal09 flux
+            fg_file      = os.path.join(actsim_root, '../data/Sehgal09FG_nodust_15mJycut.dat')
+            seed         = (set_idx, 0, 1, sim_idx, 0) 
+            fg_power     = powspec.read_spectrum(fg_file, ncol = 3, expand = 'row')
+            alm_fg90_150 = curvedsky.rand_alm_healpy(fg_power, seed = seed)
+        else:
+            assert(False)
+        return alm_fg90_150
+    
+    def load_alms_base(self, set_idx, sim_idx, cache=True, fg_override=None, ret_alm=False, fgflux="sehgal09", alm_file_postfix=''):
+        if self.eulers != (0,0,0): alm_file_postfix = '{}_rot_{}_{}_{}'.format(alm_file_postfix, self.eulers[0], self.eulers[1], self.eulers[2])
+        return super(Sehgal09Gen, self).load_alms_base(set_idx, sim_idx, cache=cache, fg_override=fg_override, ret_alm=ret_alm, alm_file_postfix=alm_file_postfix, fgflux=fgflux)
+
+
+    def __get_lens_potential_sim__(self, patch, set_idx, sim_num, oshape, owcs, mode='phi', save_alm=False):
+        raise NotImplemented('Not Yet Implemente')
