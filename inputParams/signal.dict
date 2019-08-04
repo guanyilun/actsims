@@ -1,6 +1,6 @@
 
 
-cmbDir = '../simsS1516_v0.4/data/'
+cmbDir = "/mnt/act3/users/yilun/work/actsims/data/"
 
 # coordsEpsilonArcminCMBSim = [[0, -1.], [1.5, 0]]
 # coordsEpsilonArcminCMBSim = [[0, 0], [2.5, 0]]
@@ -8,7 +8,7 @@ cmbDir = '../simsS1516_v0.4/data/'
 coordsEpsilonArcminCMBSim = [[0, 0], [0, 0]]
 
 
-beamBase = '../beams/181220/'
+beamBase = '/mnt/act3/users/mlungu/depots/mlungu/Beams/181220/'
 
 
 beamNames = {'deep1_s13_pa1_f150': beamBase + 'mr3c_s13_pa1_f150_nohwp_night_beam_tform_jitter_deep1_181220.txt', \
@@ -30,4 +30,4 @@ beamNames = {'deep1_s13_pa1_f150': beamBase + 'mr3c_s13_pa1_f150_nohwp_night_bea
              'boss_s15_pa3_f150': beamBase + 'mr3c_s15_pa3_f150_nohwp_night_beam_tform_jitter_boss_181220.txt'}
 
 
-foregroundPowerFile = 'fg.dat'
+foregroundPowerFile = '/mnt/act3/users/yilun/work/actsims/data/fg.dat'
