@@ -63,11 +63,11 @@ class NoiseGen(object):
                 self._icache[ikey] = ivars
         return covsqrt,ivars
         
-    def generate_sim(self,season=None,patch=None,array=None,seed=None,mask_patch=None,apply_ivar=True):
+    def generate_sim(self,season=None,patch=None,array=None,seed=None,mask_patch=None,apply_ivar=True,ext_signal=0):
         covsqrt,ivars = self.load_covsqrt(season=season,patch=patch,array=array,mask_patch=mask_patch)
         sims,ivars = generate_noise_sim(covsqrt,ivars,seed=seed,dtype=self.dm.dtype)
         if apply_ivar: 
-            sims = apply_ivar_window(sims,ivars)
+            sims = apply_ivar_window(ext_signal+sims,ivars)
             return sims
         else:
             return sims,ivars
@@ -218,7 +218,8 @@ def generate_noise_sim(covsqrt,ivars,seed=None,dtype=None):
     # outmaps = enmap.ifft(kmap, normalize="phys").real
 
     # isivars = 1/np.sqrt(wmaps)
-    isivars   = ((1./wmaps) - (1./wmaps.sum(axis=1)[:,None,...]))**0.5
+    with np.errstate(divide='ignore',invalid='ignore'): 
+        isivars   = ((1./wmaps) - (1./wmaps.sum(axis=1)[:,None,...]))**0.5
     isivars[~np.isfinite(isivars)] = 0
     
     assert np.all(np.isfinite(outmaps))
@@ -391,7 +392,7 @@ def get_n2d(ffts,wmaps,plot_fname=None,coadd_estimator=False,dtype=None):
 
 def smooth_ps(ps,dfact=(16,16),radial_fit_lmin=300,
               radial_fit_lmax=8000,radial_fit_wnoise_annulus=500,
-              radial_fit_annulus=20,radial_pairs=[],plot_fname=None,fill_lmax=None):
+              radial_fit_annulus=20,radial_pairs=[],plot_fname=None,fill_lmax=None,nsplits=None,delta_ell=None,log=False):
     from tilec import covtools
     ncomps = ps.shape[0]
     assert ncomps==ps.shape[1]
@@ -403,11 +404,19 @@ def smooth_ps(ps,dfact=(16,16),radial_fit_lmin=300,
     for i in range(ncomps):
         if radial_pairs is None: do_radial = True
         else: do_radial = True if (i,i) in radial_pairs else False
-        dnoise,_,_ = covtools.noise_average(ps[i,i].copy(),dfact=dfact,
-                                            lmin=radial_fit_lmin,lmax=radial_fit_lmax,
-                                            wnoise_annulus=radial_fit_wnoise_annulus,
-                                            bin_annulus=radial_fit_annulus,
-                                            radial_fit=do_radial,fill_lmax=fill_lmax)
+
+        if log:
+            dnoise,_,_ = covtools.noise_block_average(ps[i,i].copy(),nsplits,delta_ell,
+                                                      lmin=radial_fit_lmin,lmax=radial_fit_lmax,
+                                                      wnoise_annulus=radial_fit_wnoise_annulus,
+                                                      bin_annulus=radial_fit_annulus,
+                                                      radial_fit=do_radial,fill_lmax=fill_lmax,fill_lmax_width=100,log=True)
+        else:
+            dnoise,_,_ = covtools.noise_average(ps[i,i].copy(),dfact=dfact,
+                                                lmin=radial_fit_lmin,lmax=radial_fit_lmax,
+                                                wnoise_annulus=radial_fit_wnoise_annulus,
+                                                bin_annulus=radial_fit_annulus,
+                                                radial_fit=do_radial,fill_lmax=fill_lmax)
         sps[i,i] = dnoise.copy()
         if plot_fname is not None: plot("%s_unsmoothed_%d_%d" \
                                         % (plot_fname,i,i),
@@ -429,10 +438,19 @@ def smooth_ps(ps,dfact=(16,16),radial_fit_lmin=300,
                 mul = 1.
             afit = np.nan_to_num(afit / mul)
             afit[...,modlmap<2] = 0.
-            dnoise,_,_ = covtools.noise_average(afit,dfact=dfact,
-                                                lmin=radial_fit_lmin,lmax=radial_fit_lmax,
-                                                wnoise_annulus=radial_fit_wnoise_annulus,
-                                                bin_annulus=radial_fit_annulus,radial_fit=do_radial,fill_lmax=fill_lmax)
+
+
+            if log:
+                dnoise,_,_ = covtools.noise_block_average(afit,nsplits,delta_ell,
+                                                          lmin=radial_fit_lmin,lmax=radial_fit_lmax,
+                                                          wnoise_annulus=radial_fit_wnoise_annulus,
+                                                          bin_annulus=radial_fit_annulus,
+                                                          radial_fit=do_radial,fill_lmax=fill_lmax,fill_lmax_width=100,log=False)
+            else:
+                dnoise,_,_ = covtools.noise_average(afit,dfact=dfact,
+                                                    lmin=radial_fit_lmin,lmax=radial_fit_lmax,
+                                                    wnoise_annulus=radial_fit_wnoise_annulus,
+                                                    bin_annulus=radial_fit_annulus,radial_fit=do_radial,fill_lmax=fill_lmax)
             dnoise = dnoise * mul
 
             sps[i,j] = dnoise.copy()
@@ -501,6 +519,7 @@ def compare_ps(cents,p1ds1,p1ds2,plot_fname=None,err=None):
     #pl._ax.set_ylim(5e-6,3e0)
     pl._ax.set_ylim(1e-1,1e5)
     pl.vline(x=500)
+    pl.vline(x=300,ls='-.')
     pl.done(plot_fname+"_power.png", dpi=dpi)
 
     # ratios wrt data of auto-corrs and cross-freq-II
@@ -519,6 +538,7 @@ def compare_ps(cents,p1ds1,p1ds2,plot_fname=None,err=None):
     pl._ax.set_ylim(0.8,1.2)
     pl.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     pl.vline(x=500)
+    pl.vline(x=300,ls='-.')
     pl.hline(y=1)
     pl.hline(y=1.05)
     pl.hline(y=0.95)
@@ -545,6 +565,7 @@ def compare_ps(cents,p1ds1,p1ds2,plot_fname=None,err=None):
     pl.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     pl.hline(y=0)
     pl.vline(x=500)
+    pl.vline(x=300,ls='-.')
     pl.done(plot_fname+"_cross_power.png", dpi=dpi)
 
 def plot(fname,imap,dg=4,grid=False,**kwargs):
@@ -590,6 +611,7 @@ def plot_corrcoeff(cents,c1ds_data,plot_fname):
     pl.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     pl.hline(y=0,ls='-')
     pl.vline(x=500)
+    pl.vline(x=300,ls='-.')
     pl.done("%s_compare_corrcoeff.png" % (plot_fname), dpi=dpi)
 
 

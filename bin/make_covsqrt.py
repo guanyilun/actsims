@@ -32,11 +32,15 @@ parser.add_argument("--season", type=str,help='Season')
 parser.add_argument("--array", type=str,help='Array')
 parser.add_argument("--patch", type=str,help='Patch')
 parser.add_argument("--rlmin",     type=int,  default=300,help="Minimum ell.")
+parser.add_argument("--fill-min",     type=int,  default=150,help="Minimum ell.")
+parser.add_argument("--fill-const", action='store_true',help='Fill < fill-lmin with constant instead of zero. Constant is inferred from noise in annulus.')
 parser.add_argument("-n", "--nsims",     type=int,  default=10,help="Number of sims.")
 parser.add_argument("-r", "--radial-fit-annulus",     type=int,  default=20,help="Bin width for azimuthal averaging.")
 parser.add_argument("-d", "--dfact",     type=int,  default=8,help="Downsample factor.")
+parser.add_argument("--delta-ell",     type=int,  default=None,help="Downsample factor.")
 parser.add_argument("-a", "--aminusc", action='store_true',help='Whether to use the auto minus cross estimator.')
 parser.add_argument("--no-write", action='store_true',help='Do not write any FITS to disk.')
+parser.add_argument("--calibrated", action='store_true',help='Apply default calibration factors to arrays.')
 parser.add_argument("--no-off", action='store_true',help='Null the off-diagonals.')
 parser.add_argument("--no-prewhiten", action='store_true',help='Do not prewhiten spectra before smoothing. Use this flag for Planck.')
 parser.add_argument("--overwrite", action='store_true',help='Overwrite an existing version.')
@@ -73,7 +77,7 @@ mask = sints.get_act_mr3_crosslinked_mask(mask_patch,
                                           pad=args.mask_pad)
 
 if args.debug: noise.plot(pout+"_mask",mask,grid=True)
-dm = sints.models[args.model](region=mask)
+dm = sints.models[args.model](region=mask,calibrated=args.calibrated)
 
 # Get a NoiseGen model
 if args.extract_mask is not None:
@@ -83,9 +87,15 @@ else:
     emask = mask
 ngen = noise.NoiseGen(version=version,model=args.model,extract_region=emask,ncache=1,verbose=True)
 
-# Get arrays from array
 
+# Get arrays from array
+print(dm.array_freqs[args.array])
 splits = dm.get_splits(season=args.season,patch=args.patch,arrays=dm.array_freqs[args.array],srcfree=True)
+
+
+
+assert splits.ndim==5
+nsplits = splits.shape[1]
 ivars = dm.get_splits_ivar(season=args.season,patch=args.patch,arrays=dm.array_freqs[args.array])
 if args.debug: 
     noise.plot(pout+"_splits",splits)
@@ -109,12 +119,17 @@ if smooth:
                                         radial_pairs=radial_pairs,
                                         plot_fname=pout+"_n2d_%sflat_smoothed" % flatstring if args.debug else None,
                                         radial_fit_annulus = args.radial_fit_annulus,
-                                        radial_fit_lmin=args.rlmin,fill_lmax=args.lmax)
+                                         radial_fit_lmin=args.rlmin,fill_lmax=args.lmax,log=not(args.delta_ell is None),delta_ell=args.delta_ell,nsplits=nsplits)
 else:
     n2d_xflat_smoothed = n2d_xflat.copy()
 del n2d_xflat
 
-n2d_xflat_smoothed[:,:,modlmap<mask_ell] = 0
+#n2d_xflat_smoothed[:,:,modlmap<mask_ell] = 0
+
+fill_val = 0
+if args.fill_const: fill_val = n2d_xflat_smoothed[:,:,np.logical_and(modlmap>args.fill_min,modlmap<(args.fill_min+args.radial_fit_annulus))].mean()
+if args.fill_min is not None: n2d_xflat_smoothed[:,:,modlmap<args.fill_min] = fill_val
+n2d_xflat_smoothed[:,:,modlmap<2] = 0
 if args.lmax is not None: n2d_xflat_smoothed[:,:,modlmap>args.lmax] = 0
 
 if args.no_off: n2d_xflat_smoothed = noise.null_off_diagonals(n2d_xflat_smoothed)
